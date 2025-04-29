@@ -1,33 +1,99 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Hello from [檜山海斗]</title>
+  <meta charset="utf-8">
+  <title>My First MapLibre Map</title>
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
 </head>
-<body style="background-color: #f0f8ff; color: #333;">
-  <h1>こんにちは、[檜山海斗]です！</h1>
+<body>
+  <div id="map"></div>
 
-  <img src="me.jpg" width="200" alt="私の写真">
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        "version": 8,
+        "sources": {
+          "gsi-std": {
+            "type": "raster",
+            "tiles": [
+  "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"
+],
+"attribution": "© 国土地理院"
 
-  <p>はじめまして！私は檜山海斗です。ゲームに興味があり、音楽を聴くのが好きです。</p>
+          }
+        },
+        "layers": [
+          {
+            "id": "gsi-std-layer",
+            "type": "raster",
+            "source": "gsi-std",
+            "minzoom": 0,
+            "maxzoom": 18
+          }
+        ]
+      },
+      center: [139.7671, 35.6812],
+      zoom: 5
+    });
 
-  <h2>好きなラーメン屋さん</h2>
-  <ul>
-    <li>ラーメン魁力屋</li>
-    <li>天下一品</li>
-    <li>中本</li>
-  </ul>
+    // 駅のポップアップを追加
+    const locations = [
+      { lng: 139.7671, lat: 35.6812, name: "東京駅" },
+      { lng: 135.7586, lat: 34.9855, name: "京都駅" },
+      { lng: 141.3545, lat: 43.0687, name: "札幌駅" }
+    ];
 
-  <h2>趣味</h2>
-  <ul>
-    <li>音楽鑑賞</li>
-    <li>ゲーム</li>
-  </ul>
+    locations.forEach(loc => {
+      new maplibregl.Marker()
+        .setLngLat([loc.lng, loc.lat])
+        .setPopup(
+          new maplibregl.Popup().setHTML(`<h3>${loc.name}</h3>`)
+        )
+        .addTo(map);
+    });
 
-  <h2>おすすめのサイト</h2>
-  <p>私は <a href="https://www.youtube.com" target="_blank">YouTube</a> をよく見ます。</p>
+    // 日本の地震データを追加
+    const earthquakes = [
+      { lat: 37.495, lng: 137.265, year: 2024, deaths: 241 },
+      { lat: 37.548, lng: 137.299, year: 2023, deaths: 1 },
+      { lat: 37.702, lng: 141.587, year: 2022, deaths: 3 },
+      { lat: 38.475, lng: 141.633, year: 2021, deaths: null },
+      { lat: 37.745, lng: 141.749, year: 2021, deaths: 1 },
+      { lat: 38.637, lng: 139.48, year: 2019, deaths: null },
+      { lat: 34.826, lng: 135.64, year: 2018, deaths: 5 },
+      { lat: 35.37, lng: 133.812, year: 2016, deaths: null },
+      { lat: 32.791, lng: 130.75, year: 2016, deaths: 49 },
+      { lat: 32.788, lng: 130.7, year: 2016, deaths: 9 },
+      { lat: 36.6408, lng: 137.8875, year: 2014, deaths: null },
+      { lat: 34.369, lng: 134.828, year: 2013, deaths: null },
+      { lat: 38.276, lng: 141.588, year: 2011, deaths: 2 },
+      { lat: 38.297, lng: 142.373, year: 2011, deaths: 19846 },
+      { lat: 34.743, lng: 138.264, year: 2009, deaths: 1 },
+      { lat: 39.802, lng: 141.464, year: 2008, deaths: 1 },
+      { lat: 39.03, lng: 140.881, year: 2008, deaths: 23 },
+      { lat: 34.807, lng: 136.239, year: 2007, deaths: null },
+      { lat: 37.535, lng: 138.446, year: 2007, deaths: 9 },
+      { lat: 37.336, lng: 136.588, year: 2007, deaths: 1 },
+      // （ここに続くデータも必要に応じて追加可能です）
+    ];
 
-  <h2>好きな場所（Googleマップ埋め込み）</h2>
-  <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2928.0496013206393!2d141.67828057613127!3d42.78730127115646!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5f752041df74565b%3A0x2731703d1f91b1c4!2z6Zuq44Of44KvIOOCueOCq-OCpOOCv-OCpuODsw!5e0!3m2!1sja!2sjp!4v1745291365734!5m2!1sja!2sjp" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    earthquakes.forEach(eq => {
+      new maplibregl.Marker({ color: 'red' })
+        .setLngLat([eq.lng, eq.lat])
+        .setPopup(
+          new maplibregl.Popup().setHTML(
+            `<h3>地震 (日本)</h3><p>年: ${eq.year}</p><p>死者数: ${eq.deaths ?? "不明"}</p>`
+          )
+        )
+        .addTo(map);
+    });
 
+  </script>
 </body>
 </html>
