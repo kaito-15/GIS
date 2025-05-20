@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学生ポータル</title>
+  <!-- Bootstrap CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+    }
+    #map-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+    .navbar {
+      z-index: 2;
+      position: relative;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">地震対策マップ</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+      aria-controls="navbarNav" aria-expanded="false" aria-label="ナビゲーションの切り替え">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link active" aria-current="page" href="#" data-bs-toggle="modal" data-bs-target="#listModal">リスト</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#phoneModal">電話</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#shelterModal">避難場所</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">設定</a>
+        </li>
+      </ul>
+      <form class="d-flex ms-3" role="search" id="searchForm">
+        <input class="form-control me-2" type="search" placeholder="検索" aria-label="検索" id="searchInput">
+        <button class="btn btn-outline-success" type="submit">検索</button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="weather-info" class="bg-dark bg-opacity-75 text-light p-3 rounded"
+    style="position:absolute;bottom:20px;right:20px;z-index:10;min-width:220px;">
+    <div>天気情報を取得中...</div>
+  </div>
+</div>
+
+<!-- リスト用モーダル -->
+<div class="modal fade" id="listModal" tabindex="-1" aria-labelledby="listModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title" id="listModalLabel">チェックリスト & メモ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="checklist" class="list-group mb-3">
+          <li class="list-group-item bg-dark text-light">
+            <input type="checkbox" class="form-check-input me-2" id="item1"> 非常食
+          </li>
+          <li class="list-group-item bg-dark text-light">
+            <input type="checkbox" class="form-check-input me-2" id="item2"> 懐中電灯
+          </li>
+          <li class="list-group-item bg-dark text-light">
+            <input type="checkbox" class="form-check-input me-2" id="item3"> 飲料水
+          </li>
+        </ul>
+        <label for="listMemo" class="form-label">メモ</label>
+        <textarea id="listMemo" class="form-control bg-dark text-light" rows="3" placeholder="ここにメモを入力"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 電話用モーダル -->
+<div class="modal fade" id="phoneModal" tabindex="-1" aria-labelledby="phoneModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title" id="phoneModalLabel">電話番号 & メモ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        <form id="phoneForm" class="mb-2 d-flex">
+          <input type="text" class="form-control me-2" id="phoneInput" placeholder="電話番号を入力">
+          <button type="submit" class="btn btn-success">追加</button>
+        </form>
+        <ul id="phoneList" class="list-group mb-3"></ul>
+        <label for="phoneMemo" class="form-label">メモ</label>
+        <textarea id="phoneMemo" class="form-control bg-dark text-light" rows="3" placeholder="ここにメモを入力"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 避難場所用モーダル -->
+<div class="modal fade" id="shelterModal" tabindex="-1" aria-labelledby="shelterModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title" id="shelterModalLabel">避難場所を入力</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        <form id="shelterForm">
+          <input type="text" class="form-control mb-2" id="shelterInput" placeholder="避難場所名や住所を入力" required>
+          <button type="submit" class="btn btn-success w-100">地図にピンを立てて保存</button>
+        </form>
+        <div id="savedShelters" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script>
+  // MapLibre地図の初期化
+  let map;
+  let markers = [];
+  function initMap(center = [139.767125, 35.681236], zoom = 12) {
+    map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tile.openstreetmap.jp/styles/osm-bright/style.json', // OSM日本タイル
+      center: center,
+      zoom: zoom
+    });
+    // 現在地マーカー
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        new maplibregl.Marker({color: "blue"})
+          .setLngLat([lng, lat])
+          .setPopup(new maplibregl.Popup().setText("あなたの現在地"))
+          .addTo(map);
+        map.setCenter([lng, lat]);
+      });
+    }
+  }
+  // ページロード時に初期化
+  window.addEventListener('DOMContentLoaded', function() {
+    initMap();
+  });
+
+  // ジオコーディングして地図にピン
+  function showMap(place) {
+    // 既存マーカー削除
+    markers.forEach(m => m.remove());
+    markers = [];
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(place)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data[0]) {
+          const lng = parseFloat(data[0].lon);
+          const lat = parseFloat(data[0].lat);
+          map.flyTo({center: [lng, lat], zoom: 14});
+          const marker = new maplibregl.Marker({color: "red"})
+            .setLngLat([lng, lat])
+            .setPopup(new maplibregl.Popup().setText(place))
+            .addTo(map);
+          markers.push(marker);
+        } else {
+          alert('場所が見つかりませんでした');
+        }
+      });
+    getWeather();
+  }
+
+  // 検索フォーム
+  document.getElementById('searchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const place = document.getElementById('searchInput').value;
+    if (place) {
+      showMap(place);
+    }
+  });
+
+  // 天気情報取得
+  function getWeather() {
+    if (!navigator.geolocation) {
+      updateWeatherInfo('位置情報が取得できません');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(success, error);
+
+    function success(pos) {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const apiKey = 'YOUR_OPENWEATHERMAP_API_KEY'; // ←ここを自分のAPIキーに変更
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=ja&appid=${apiKey}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.list || data.list.length === 0) {
+            updateWeatherInfo('天気情報が取得できません');
+            return;
+          }
+          const now = data.list[0];
+          const temp = now.main.temp;
+          const humidity = now.main.humidity;
+          const weather = now.weather[0].description;
+          let forecastHtml = '<ul class="mb-0">';
+          for (let i = 0; i < 3; i++) {
+            const item = data.list[i];
+            const time = new Date(item.dt * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            forecastHtml += `<li>${time}：${item.weather[0].description}（${item.main.temp}℃）</li>`;
+          }
+          forecastHtml += '</ul>';
+          updateWeatherInfo(`
+            <div><strong>現在地の天気</strong></div>
+            <div>気温：${temp}℃</div>
+            <div>湿度：${humidity}%</div>
+            <div>天気：${weather}</div>
+            <div class="mt-2"><strong>これからの予報</strong></div>
+            ${forecastHtml}
+          `);
+        })
+        .catch(() => updateWeatherInfo('天気情報が取得できません'));
+    }
+    function error() {
+      updateWeatherInfo('位置情報が取得できません');
+    }
+    function updateWeatherInfo(html) {
+      const info = document.getElementById('weather-info');
+      if (info) info.innerHTML = html;
+    }
+  }
+
+  // 避難場所の保存と表示
+  function updateSavedShelters() {
+    const savedShelters = JSON.parse(localStorage.getItem('shelters')) || [];
+    const container = document.getElementById('savedShelters');
+    container.innerHTML = '';
+    savedShelters.forEach((shelter, index) => {
+      const div = document.createElement('div');
+      div.className = 'alert alert-info alert-dismissible fade show mb-2';
+      div.role = 'alert';
+      div.innerHTML = `
+        <span style="cursor:pointer;" class="shelter-link">${shelter}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="閉じる"></button>
+      `;
+      // ピン表示
+      div.querySelector('.shelter-link').addEventListener('click', function() {
+        showMap(shelter);
+      });
+      // 削除
+      div.querySelector('.btn-close').addEventListener('click', function() {
+        savedShelters.splice(index, 1);
+        localStorage.setItem('shelters', JSON.stringify(savedShelters));
+        updateSavedShelters();
+      });
+      container.appendChild(div);
+    });
+  }
+
+  document.getElementById('shelterForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const shelterInput = document.getElementById('shelterInput');
+    const shelter = shelterInput.value.trim();
+    if (shelter) {
+      const savedShelters = JSON.parse(localStorage.getItem('shelters')) || [];
+      savedShelters.push(shelter);
+      localStorage.setItem('shelters', JSON.stringify(savedShelters));
+      updateSavedShelters();
+      shelterInput.value = '';
+      const shelterModal = bootstrap.Modal.getInstance(document.getElementById('shelterModal'));
+      shelterModal.hide();
+      showMap(shelter); // 新しい避難場所を地図に表示
+    }
+  });
+
+  // モーダルを開くたびに保存済み避難場所を表示
+  document.getElementById('shelterModal').addEventListener('show.bs.modal', updateSavedShelters);
+
+  // 電話番号の保存・表示・削除
+  function updatePhoneList() {
+    const phoneList = JSON.parse(localStorage.getItem('phones') || '[]');
+    const ul = document.getElementById('phoneList');
+    ul.innerHTML = '';
+    phoneList.forEach((phone, idx) => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
+      li.innerHTML = `<span>${phone}</span>
+        <button class="btn btn-sm btn-danger ms-2">削除</button>`;
+      li.querySelector('button').onclick = function() {
+        phoneList.splice(idx, 1);
+        localStorage.setItem('phones', JSON.stringify(phoneList));
+        updatePhoneList();
+      };
+      ul.appendChild(li);
+    });
+  }
+  document.getElementById('phoneForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('phoneInput');
+    const val = input.value.trim();
+    if (val) {
+      const phoneList = JSON.parse(localStorage.getItem('phones') || '[]');
+      phoneList.push(val);
+      localStorage.setItem('phones', JSON.stringify(phoneList));
+      updatePhoneList();
+      input.value = '';
+    }
+  });
+  document.getElementById('phoneModal').addEventListener('show.bs.modal', updatePhoneList);
+
+  // 電話メモ保存・復元
+  const phoneMemo = document.getElementById('phoneMemo');
+  phoneMemo.value = localStorage.getItem('phoneMemo') || '';
+  phoneMemo.addEventListener('input', function() {
+    localStorage.setItem('phoneMemo', phoneMemo.value);
+  });
+
+  // チェックリストの保存・復元
+  const checklistIds = ['item1', 'item2', 'item3'];
+  checklistIds.forEach(id => {
+    const cb = document.getElementById(id);
+    cb.checked = localStorage.getItem('check_' + id) === 'true';
+    cb.addEventListener('change', function() {
+      localStorage.setItem('check_' + id, cb.checked);
+    });
+  });
+
+  // リストメモ保存・復元
+  const listMemo = document.getElementById('listMemo');
+  listMemo.value = localStorage.getItem('listMemo') || '';
+  listMemo.addEventListener('input', function() {
+    localStorage.setItem('listMemo', listMemo.value);
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
