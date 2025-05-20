@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chiba Bike Theft Analysis</title>
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+    #info {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 1;
+      min-width: 180px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="info"><strong>地図をクリックして円バッファを作成し、範囲内の盗難件数を表示します。</strong></div>
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script>
+    let allBikeTheftData = null;
+    let popup = null;
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          'google-tiles': {
+            type: 'raster',
+            tiles: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'],
+            tileSize: 256
+          }
+        },
+        layers: [
+          {
+            id: 'google-tiles-layer',
+            type: 'raster',
+            source: 'google-tiles',
+            minzoom: 0,
+            maxzoom: 19
+          }
+        ]
+      },
+      center: [139.7671, 35.6812], // 千葉県付近（初期位置は東京駅）
+      zoom: 10
+    });
+
+    map.on('load', () => {
+      // 自転車盗難データのGeoJSONを読み込み
+      map.addSource('bike', {
+        type: 'geojson',
+        data: 'chibike.geojson'
+      });
+
+      // 色分け（カテゴリ: 施錠関係）対応: 鍵あり→緑、鍵なし→赤、その他→グレー
+      map.addLayer({
+        id: 'bike-layer',
+        type: 'circle',
+        source: 'bike',
+        paint: {
+          'circle-radius': 4,
+          'circle-color': [
+  'match', ['get', '施錠関係'],
+  '施錠した', '#008000',  // 緑
+  '施錠せず', '#ff0000', // 赤
+  '#888888'             // その他はグレー
+          ],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': 0.7
+        }
+      });
+
+      // 円バッファ用のソース・レイヤー
+      map.addSource('circle-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      map.addLayer({
+        id: 'circle-layer',
+        type: 'fill',
+        source: 'circle-source',
+        paint: {
+          'fill-color': '#007cbf',
+          'fill-opacity': 0.4
+        }
+      });
+      map.addLayer({
+        id: 'circle-outline-layer',
+        type: 'line',
+        source: 'circle-source',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 2
+        }
+      });
+
+      // GeoJSONデータ取得→地図にフィット
+      fetch('chibike.geojson')
+        .then(response => response.json())
+        .then(data => {
+          allBikeTheftData = data;
+          if (data && data.features.length > 0) {
+            const bounds = turf.bbox(data);
+            map.fitBounds(bounds, { padding: 50 });
+          }
+        });
+
+      // クリック時：円バッファ描画＋件数カウント＋ポップアップ＋パネル表示
+      map.on('click', (e) => {
+        const center = [e.lngLat.lng, e.lngLat.lat];
+        const circle = turf.circle(center, 1, { steps: 64, units: 'kilometers' });
+        map.getSource('circle-source').setData(circle);
+
+        // 範囲内ポイントをカウント＆リストアップ
+        let count = 0;
+        let pointsInCircle = [];
+        if (allBikeTheftData && allBikeTheftData.features) {
+          allBikeTheftData.features.forEach(f => {
+            if (f.geometry.type === 'Point' && turf.booleanPointInPolygon(f, circle)) {
+              count++;
+              pointsInCircle.push(f);
+            }
+          });
+        }
+
+        // ポップアップ表示
+        if (popup) popup.remove();
+        popup = new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`<h3>1km以内の盗難件数</h3><p>${count} 件</p>`)
+          .addTo(map);
+
+        // パネルに詳細表示
+        const infoPanel = document.getElementById('info');
+        let html = `<strong>この円の中:</strong><br>盗難件数: ${count} 件<br>`;
+        if (count > 0) {
+          html += `<ul style="max-height:100px;overflow:auto;">`;
+          pointsInCircle.slice(0, 10).forEach(f => {
+            // 代表的な属性のみ表示（例: 施錠関係, 日時, 場所, など）
+            html += `<li>`;
+            if (f.properties) {
+              html += [f.properties['施錠関係'], f.properties['発生日時'], f.properties['発生場所']].filter(Boolean).join(' / ');
+            }
+            html += `</li>`;
+          });
+          if (count > 10) html += `<li>...他 ${count - 10} 件</li>`;
+          html += `</ul>`;
+        }
+        infoPanel.innerHTML = html;
+
+        // 円に地図をズーム
+        const bounds = turf.bbox(circle);
+        map.fitBounds(bounds, { padding: 50 });
+      });
+    });
+  </script>
+</body>
+</html>
