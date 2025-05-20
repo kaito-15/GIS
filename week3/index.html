@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>My First MapLibre Map</title>
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        "version": 8,
+        "sources": {
+          "gsi-std": {
+            "type": "raster",
+            "tiles": [
+  "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"
+],
+"attribution": "© 国土地理院"
+
+          }
+        },
+        "layers": [
+          {
+            "id": "gsi-std-layer",
+            "type": "raster",
+            "source": "gsi-std",
+            "minzoom": 0,
+            "maxzoom": 18
+          }
+        ]
+      },
+      center: [139.7671, 35.6812],
+      zoom: 5
+    });
+
+    // 駅のポップアップを追加
+    const locations = [
+      { lng: 139.7671, lat: 35.6812, name: "東京駅" },
+      { lng: 135.7586, lat: 34.9855, name: "京都駅" },
+      { lng: 141.3545, lat: 43.0687, name: "札幌駅" }
+    ];
+
+    locations.forEach(loc => {
+      new maplibregl.Marker()
+        .setLngLat([loc.lng, loc.lat])
+        .setPopup(
+          new maplibregl.Popup().setHTML(`<h3>${loc.name}</h3>`)
+        )
+        .addTo(map);
+    });
+
+    // 日本の地震データを追加
+    const earthquakes = [
+      { lat: 37.495, lng: 137.265, year: 2024, deaths: 241 },
+      { lat: 37.548, lng: 137.299, year: 2023, deaths: 1 },
+      { lat: 37.702, lng: 141.587, year: 2022, deaths: 3 },
+      { lat: 38.475, lng: 141.633, year: 2021, deaths: null },
+      { lat: 37.745, lng: 141.749, year: 2021, deaths: 1 },
+      { lat: 38.637, lng: 139.48, year: 2019, deaths: null },
+      { lat: 34.826, lng: 135.64, year: 2018, deaths: 5 },
+      { lat: 35.37, lng: 133.812, year: 2016, deaths: null },
+      { lat: 32.791, lng: 130.75, year: 2016, deaths: 49 },
+      { lat: 32.788, lng: 130.7, year: 2016, deaths: 9 },
+      { lat: 36.6408, lng: 137.8875, year: 2014, deaths: null },
+      { lat: 34.369, lng: 134.828, year: 2013, deaths: null },
+      { lat: 38.276, lng: 141.588, year: 2011, deaths: 2 },
+      { lat: 38.297, lng: 142.373, year: 2011, deaths: 19846 },
+      { lat: 34.743, lng: 138.264, year: 2009, deaths: 1 },
+      { lat: 39.802, lng: 141.464, year: 2008, deaths: 1 },
+      { lat: 39.03, lng: 140.881, year: 2008, deaths: 23 },
+      { lat: 34.807, lng: 136.239, year: 2007, deaths: null },
+      { lat: 37.535, lng: 138.446, year: 2007, deaths: 9 },
+      { lat: 37.336, lng: 136.588, year: 2007, deaths: 1 },
+      // （ここに続くデータも必要に応じて追加可能です）
+    ];
+
+    earthquakes.forEach(eq => {
+      new maplibregl.Marker({ color: 'red' })
+        .setLngLat([eq.lng, eq.lat])
+        .setPopup(
+          new maplibregl.Popup().setHTML(
+            `<h3>地震 (日本)</h3><p>年: ${eq.year}</p><p>死者数: ${eq.deaths ?? "不明"}</p>`
+          )
+        )
+        .addTo(map);
+    });
+
+  </script>
+</body>
+</html>
