@@ -68,10 +68,6 @@
 
 <div id="map-container">
   <div id="map"></div>
-  <div id="weather-info" class="bg-dark bg-opacity-75 text-light p-3 rounded"
-    style="position:absolute;bottom:20px;right:20px;z-index:10;min-width:220px;">
-    <div>天気情報を取得中...</div>
-  </div>
 </div>
 
 <!-- リスト用モーダル -->
@@ -232,7 +228,6 @@
           alert('場所が見つかりませんでした');
         }
       });
-    getWeather();
   }
 
   // 検索フォーム
@@ -243,56 +238,6 @@
       showMap(place);
     }
   });
-
-  // 天気情報取得
-  function getWeather() {
-    if (!navigator.geolocation) {
-      updateWeatherInfo('位置情報が取得できません');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(success, error);
-
-    function success(pos) {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const apiKey = 'YOUR_OPENWEATHERMAP_API_KEY'; // ←ここを自分のAPIキーに変更
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&lang=ja&appid=${apiKey}`)
-        .then(res => res.json())
-        .then(data => {
-          if (!data.list || data.list.length === 0) {
-            updateWeatherInfo('天気情報が取得できません');
-            return;
-          }
-          const now = data.list[0];
-          const temp = now.main.temp;
-          const humidity = now.main.humidity;
-          const weather = now.weather[0].description;
-          let forecastHtml = '<ul class="mb-0">';
-          for (let i = 0; i < 3; i++) {
-            const item = data.list[i];
-            const time = new Date(item.dt * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            forecastHtml += `<li>${time}：${item.weather[0].description}（${item.main.temp}℃）</li>`;
-          }
-          forecastHtml += '</ul>';
-          updateWeatherInfo(`
-            <div><strong>現在地の天気</strong></div>
-            <div>気温：${temp}℃</div>
-            <div>湿度：${humidity}%</div>
-            <div>天気：${weather}</div>
-            <div class="mt-2"><strong>これからの予報</strong></div>
-            ${forecastHtml}
-          `);
-        })
-        .catch(() => updateWeatherInfo('天気情報が取得できません'));
-    }
-    function error() {
-      updateWeatherInfo('位置情報が取得できません');
-    }
-    function updateWeatherInfo(html) {
-      const info = document.getElementById('weather-info');
-      if (info) info.innerHTML = html;
-    }
-  }
 
   // 避難場所の保存と表示
   function updateSavedShelters() {
@@ -573,6 +518,7 @@ document.getElementById('addChecklistForm').addEventListener('submit', function(
   document.getElementById('langSelect').addEventListener('change', function() {
     localStorage.setItem('lang', this.value);
     applyLang(this.value);
+    applyMapLang(this.value); // 追加
   });
   document.getElementById('themeSelect').addEventListener('change', function() {
     localStorage.setItem('theme', this.value);
@@ -611,6 +557,15 @@ if (customBg && customText) {
   applyCustomColors(customBg, customText);
 }
   });
+
+  function applyMapLang(lang) {
+  if (!map) return;
+  if (lang === 'en') {
+    map.setStyle('英語用のスタイルURL');
+  } else {
+    map.setStyle('日本語用のスタイルURL');
+  }
+}
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
