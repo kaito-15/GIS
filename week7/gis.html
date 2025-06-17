@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>防災マップ</title>
+    <!-- MapLibreのスタイルシート -->
+    <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <label for="destination">避難場所を入力:</label>
+        <input type="text" id="destination" placeholder="例: 東京駅">
+        <button id="search">検索</button>
+        <p id="details"></p>
+    </div>
+    <div id="map"></div>
+    <!-- MapLibreのスクリプト -->
+    <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+    <!-- Mapbox Directions API -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.1.1/mapbox-gl-directions.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.1.1/mapbox-gl-directions.css" rel="stylesheet" />
+    <script>
+        const map = new maplibregl.Map({
+            container: 'map', // HTML内の地図を表示する要素のID
+            style: 'https://api.maptiler.com/maps/hybrid/style.json?key=YOUR_MAPTILER_API_KEY', // デモスタイル
+            center: [139.6917, 35.6895], // 東京の中心座標 [経度, 緯度]
+            zoom: 12 // 初期表示のズームレベル
+        });
+
+        const directions = new MapboxDirections({
+            accessToken: 'YOUR_MAPBOX_ACCESS_TOKEN', // Mapboxのアクセストークン
+            unit: 'metric',
+            profile: 'walking', // 歩行ルートを使用
+            language: 'ja' // 日本語対応
+        });
+
+        map.addControl(directions, 'top-left');
+
+        let currentMarker = null; // 現在のピンを保持
+
+        directions.on('route', (e) => {
+            const route = e.route[0];
+            const duration = Math.round(route.duration / 60); // 時間を分に変換
+
+            // 最新の徒歩時間のみ表示
+            document.getElementById('details').textContent = `目的地までの所要時間: ${duration}分`;
+
+            // 既存のピンを削除
+            if (currentMarker) {
+                currentMarker.remove();
+            }
+
+            // 新しいピンを追加
+            const destinationCoords = route.geometry.coordinates[route.geometry.coordinates.length - 1];
+            currentMarker = new maplibregl.Marker({ color: 'red' })
+                .setLngLat(destinationCoords)
+                .addTo(map);
+        });
+
+        document.getElementById('search').addEventListener('click', () => {
+            const destination = document.getElementById('destination').value;
+            if (destination) {
+                directions.setOrigin([139.6917, 35.6895]); // 出発地点をリセット
+                directions.setDestination(destination);
+            }
+        });
+    </script>
+</body>
+</html>

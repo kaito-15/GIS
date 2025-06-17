@@ -2,6 +2,8 @@
 
 let map;
 let markers = [];
+let currentPopup = null; // 現在のポップアップを保持
+let currentMarker = null; // 現在の赤ピンを保持
 
 function initMap(center = [139.767125, 35.681236], zoom = 12) {
     map = new maplibregl.Map({
@@ -92,16 +94,38 @@ function showRouteToShelter(shelterLat, shelterLon) {
                 }
             });
 
+            // 既存ポップアップを削除
+            if (currentPopup) {
+                currentPopup.remove();
+            }
+
             // ポップアップで所要時間を表示
             if (route.coordinates && route.coordinates.length > 1) {
                 const midIndex = Math.floor(route.coordinates.length / 2);
                 const midCoord = route.coordinates[midIndex];
                 const popupText = `徒歩 約${durationMinutes}分`;
-                new maplibregl.Popup({ closeOnClick: false, closeButton: false })
+                currentPopup = new maplibregl.Popup({ closeOnClick: false, closeButton: false })
                     .setLngLat(midCoord)
                     .setHTML(`<div class="custom-popup">${popupText}</div>`)
                     .addTo(map);
             }
+
+            // 既存の赤ピンを削除
+            if (currentMarker) {
+                currentMarker.remove();
+            }
+
+            // 赤ピンを追加
+            const destinationCoords = route.coordinates[route.coordinates.length - 1];
+            currentMarker = new maplibregl.Marker({ color: "red" })
+                .setLngLat(destinationCoords)
+                .addTo(map);
+
+            // 赤ピンにダブルクリックイベントを追加
+            currentMarker.getElement().addEventListener('dblclick', () => {
+                currentMarker.remove();
+                currentMarker = null; // 赤ピンをリセット
+            });
         } catch (err) {
             alert('経路取得に失敗しました');
             console.error(err);
