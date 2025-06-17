@@ -478,6 +478,9 @@ window.addEventListener('DOMContentLoaded', function() {
     });
     // 地震速報ボタンのイベント
     document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
+
+    // 消去ボタンのイベント
+    document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
 });
 
 async function fetchAndShowEarthquake() {
@@ -561,3 +564,24 @@ async function fetchAndShowEarthquake() {
 
 4. 取得したlat, lngを使ってマップ上にピンを立てることができます。
 */
+
+// 赤ピン・経路・徒歩時間の消去ボタン
+function clearMapOverlays() {
+    // 赤ピン
+    if (currentMarker) {
+        currentMarker.remove();
+        currentMarker = null;
+    }
+    // 経路
+    if (map.getLayer('osrm-route-layer')) {
+        map.removeLayer('osrm-route-layer');
+    }
+    if (map.getSource('osrm-route-source')) {
+        map.removeSource('osrm-route-source');
+    }
+    // 徒歩時間ポップアップ
+    if (currentPopup) {
+        currentPopup.remove();
+        currentPopup = null;
+    }
+}
