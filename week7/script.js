@@ -5,6 +5,19 @@ let markers = [];
 let currentPopup = null; // 現在のポップアップを保持
 let currentMarker = null; // 現在の赤ピンを保持
 let hazardMapVisible = false; // ハザードマップの表示状態を管理
+let earthquakeMarkers = []; // 過去24時間の地震ピン
+
+// 災害種別ごとの国土地理院ハザードマップタイルURL（Leaflet用API）
+const HAZARD_MAP_TILES = {
+    // 洪水: 浸水想定区域
+    flood: 'https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin/{z}/{x}/{y}.png',
+    // 津波: 津波浸水想定
+    tsunami: 'https://disaportaldata.gsi.go.jp/raster/05_tsunami/{z}/{x}/{y}.png',
+    // 土砂災害: 土石流危険渓流
+    landslide: 'https://disaportaldata.gsi.go.jp/raster/03_dosekiryu/{z}/{x}/{y}.png',
+    // 高潮: 高潮浸水想定
+    storm_surge: 'https://disaportaldata.gsi.go.jp/raster/06_takashio/{z}/{x}/{y}.png'
+};
 
 function initMap(center = [139.767125, 35.681236], zoom = 12) {
     map = new maplibregl.Map({
@@ -137,6 +150,11 @@ function showRouteToShelter(shelterLat, shelterLon) {
 }
 
 function showMap(place) {
+    // 既存の赤ピンを削除
+    if (currentMarker) {
+        currentMarker.remove();
+        currentMarker = null;
+    }
     markers.forEach(m => m.remove());
     markers = [];
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(place)}`)
@@ -146,7 +164,8 @@ function showMap(place) {
                 const lng = parseFloat(data[0].lon);
                 const lat = parseFloat(data[0].lat);
                 map.flyTo({ center: [lng, lat], zoom: 14 });
-                const marker = new maplibregl.Marker({ color: "red" })
+                // 赤ピンを最新のものだけ表示
+                currentMarker = new maplibregl.Marker({ color: "red" })
                     .setLngLat([lng, lat])
                     .setPopup(new maplibregl.Popup().setHTML(`
                         <div>
@@ -155,10 +174,10 @@ function showMap(place) {
                         </div>
                     `))
                     .addTo(map);
-                markers.push(marker);
+                markers.push(currentMarker);
 
                 // ボタンのクリックイベントを追加
-                marker.getPopup().on('open', () => {
+                currentMarker.getPopup().on('open', () => {
                     document.getElementById('routeButton').addEventListener('click', () => {
                         showRouteToShelter(lat, lng);
                     });
@@ -196,11 +215,17 @@ function updateSavedShelters() {
                 const shelterLat = parseFloat(data[0].lat);
                 const shelterLon = parseFloat(data[0].lon);
 
+                // 前の赤ピンを削除
+                if (currentMarker) {
+                    currentMarker.remove();
+                    currentMarker = null;
+                }
+
                 // 地図をその場所へ移動
                 map.flyTo({ center: [shelterLon, shelterLat], zoom: 14 });
 
-                // 赤いピンを立てる
-                new maplibregl.Marker({ color: "red" })
+                // 赤いピンを最新のものだけ表示
+                currentMarker = new maplibregl.Marker({ color: "red" })
                     .setLngLat([shelterLon, shelterLat])
                     .setPopup(new maplibregl.Popup().setText(shelter))
                     .addTo(map);
@@ -395,22 +420,29 @@ function setLng(codes) {
     });
 }
 
-function toggleHazardMap() {
-    if (hazardMapVisible) {
-        // ハザードマップを非表示
-        if (map.getLayer('hazard-map-layer')) {
-            map.removeLayer('hazard-map-layer');
-        }
-        if (map.getSource('hazard-map')) {
-            map.removeSource('hazard-map');
-        }
-        hazardMapVisible = false;
-    } else {
-        // Leaflet（国土地理院）のハザードマップタイルURL例（洪水浸水想定区域）
-        const hazardMapUrl = 'https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin/{z}/{x}/{y}.png';
+// 洪水ハザードマップAPIの404エラーは、
+// 「その地域・ズームレベルに該当するタイル画像が存在しない」ため発生します。
+// これは国土地理院APIの仕様で、正常な挙動です。
+// （例：山間部や海上など浸水想定区域がない場所・ズームでは404が返ります）
+
+// プログラムでこのエラーを消すことはできませんが、
+// 下記のようにユーザーへの通知や、開発者ツールのエラー抑制は可能です。
+
+function setHazardMap(type) {
+    // 既存ハザードマップを削除
+    if (map.getLayer('hazard-map-layer')) {
+        map.removeLayer('hazard-map-layer');
+    }
+    if (map.getSource('hazard-map')) {
+        map.removeSource('hazard-map');
+    }
+    hazardMapVisible = false;
+
+    // 洪水のみ表示
+    if (type === 'flood' && HAZARD_MAP_TILES.flood) {
         map.addSource('hazard-map', {
             type: 'raster',
-            tiles: [hazardMapUrl],
+            tiles: [HAZARD_MAP_TILES.flood],
             tileSize: 256,
             attribution: "国土地理院 災害情報"
         });
@@ -421,11 +453,111 @@ function toggleHazardMap() {
             paint: {}
         });
         hazardMapVisible = true;
+
+        // 404エラー時のユーザー通知（1回のみ）
+        map.on('error', function onError(e) {
+            if (
+                e && e.error && e.error.status === 404 &&
+                e.sourceId === 'hazard-map'
+            ) {
+                alert('この地域・ズームレベルには洪水ハザードマップがありません。');
+                map.off('error', onError); // 一度だけ通知
+            }
+        });
     }
 }
 
-// DOMContentLoaded イベントでボタンのイベントリスナーを追加
+// DOMContentLoaded イベントでドロップダウンのイベントリスナーを追加
 window.addEventListener('DOMContentLoaded', function() {
     initMap();
-    document.getElementById('hazardMapButton').addEventListener('click', toggleHazardMap);
+    document.querySelectorAll('.hazard-map-select').forEach(el => {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            setHazardMap(this.dataset.type);
+        });
+    });
+    // 地震速報ボタンのイベント
+    document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
 });
+
+async function fetchAndShowEarthquake() {
+    // 気象庁の地震情報JSON（過去の地震一覧）
+    try {
+        // 地震リスト取得
+        const listRes = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json');
+        const list = await listRes.json();
+        if (!Array.isArray(list) || list.length === 0) {
+            alert('地震情報が取得できませんでした');
+            return;
+        }
+
+        // 既存の地震ピンを全て削除
+        earthquakeMarkers.forEach(marker => marker.remove());
+        earthquakeMarkers = [];
+
+        // 24時間以内の地震のみ抽出
+        const now = new Date();
+        for (const item of list) {
+            // item.timeは "2024-06-08T12:34:56+09:00" 形式
+            const quakeTime = new Date(item.time);
+            if ((now - quakeTime) > 24 * 60 * 60 * 1000) break; // 24時間より前なら終了
+
+            // 詳細データ取得
+            try {
+                const detailRes = await fetch(`https://www.jma.go.jp/bosai/quake/data/${item.json}`);
+                const detail = await detailRes.json();
+                const hypocenter = detail.Body.Earthquake.Hypocenter;
+                if (!hypocenter || !hypocenter.latitude || !hypocenter.longitude) continue;
+                const lat = parseFloat(hypocenter.latitude);
+                const lng = parseFloat(hypocenter.longitude);
+
+                // ピン追加
+                const marker = new maplibregl.Marker({ color: "orange" })
+                    .setLngLat([lng, lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <div>
+                            <b>地震発生</b><br>
+                            ${hypocenter.name || ''}<br>
+                            規模: ${detail.Body.Earthquake.Magnitude || ''}<br>
+                            発生時刻: ${detail.Body.Earthquake.OriginTime || ''}
+                        </div>
+                    `))
+                    .addTo(map);
+                earthquakeMarkers.push(marker);
+            } catch (e) {
+                // 個別地震データ取得失敗は無視
+                continue;
+            }
+        }
+
+        // 最初の地震ピンがあればそこに移動
+        if (earthquakeMarkers.length > 0) {
+            earthquakeMarkers[0].togglePopup();
+            map.flyTo({ center: earthquakeMarkers[0].getLngLat(), zoom: 6 });
+        } else {
+            alert('過去24時間に地震情報はありません');
+        }
+    } catch (e) {
+        alert('地震情報の取得に失敗しました');
+        console.error(e);
+    }
+}
+
+/*
+1. 地震リストを取得
+   https://www.jma.go.jp/bosai/quake/data/list.json
+   → 最新の地震情報ファイル名（例: 20240607123456.json）が配列で返る
+
+2. 最新の地震詳細データを取得
+   https://www.jma.go.jp/bosai/quake/data/20240607123456.json
+   → JSONの Body.Earthquake.Hypocenter.latitude, Body.Earthquake.Hypocenter.longitude に位置情報が入っている
+
+3. 例（fetchで取得）:
+   const list = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json').then(r => r.json());
+   const latestId = list[0].json;
+   const detail = await fetch('https://www.jma.go.jp/bosai/quake/data/' + latestId).then(r => r.json());
+   const lat = parseFloat(detail.Body.Earthquake.Hypocenter.latitude);
+   const lng = parseFloat(detail.Body.Earthquake.Hypocenter.longitude);
+
+4. 取得したlat, lngを使ってマップ上にピンを立てることができます。
+*/
