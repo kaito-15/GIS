@@ -4,6 +4,7 @@ let map;
 let markers = [];
 let currentPopup = null; // 現在のポップアップを保持
 let currentMarker = null; // 現在の赤ピンを保持
+let hazardMapVisible = false; // ハザードマップの表示状態を管理
 
 function initMap(center = [139.767125, 35.681236], zoom = 12) {
     map = new maplibregl.Map({
@@ -393,3 +394,38 @@ function setLng(codes) {
         console.log('Processing language code:', code);
     });
 }
+
+function toggleHazardMap() {
+    if (hazardMapVisible) {
+        // ハザードマップを非表示
+        if (map.getLayer('hazard-map-layer')) {
+            map.removeLayer('hazard-map-layer');
+        }
+        if (map.getSource('hazard-map')) {
+            map.removeSource('hazard-map');
+        }
+        hazardMapVisible = false;
+    } else {
+        // Leaflet（国土地理院）のハザードマップタイルURL例（洪水浸水想定区域）
+        const hazardMapUrl = 'https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin/{z}/{x}/{y}.png';
+        map.addSource('hazard-map', {
+            type: 'raster',
+            tiles: [hazardMapUrl],
+            tileSize: 256,
+            attribution: "国土地理院 災害情報"
+        });
+        map.addLayer({
+            id: 'hazard-map-layer',
+            type: 'raster',
+            source: 'hazard-map',
+            paint: {}
+        });
+        hazardMapVisible = true;
+    }
+}
+
+// DOMContentLoaded イベントでボタンのイベントリスナーを追加
+window.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    document.getElementById('hazardMapButton').addEventListener('click', toggleHazardMap);
+});
