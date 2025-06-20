@@ -62,53 +62,41 @@ window.addEventListener('DOMContentLoaded', function() {
             setHazardMap(this.dataset.type);
         });
     });
-    // 地震速報ボタンのイベント
     document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
-
-    // 消去ボタンのイベント
     document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
 
-    // スマホ時のみ地図下部にボタンをまとめて表示
-    function setupMobileButtonBar() {
-        // 既存のボタンバーがあれば削除
-        const oldBar = document.getElementById('mobile-map-buttons-bar');
-        if (oldBar) oldBar.remove();
-
+    // スマホ用機能リストの表示・イベント
+    function setupMobileFuncList() {
+        const mobileList = document.getElementById('mobile-func-list');
         if (window.innerWidth <= 600) {
-            // ボタン要素取得
-            const earthquakeBtn = document.getElementById('earthquakeButton');
-            const clearBtn = document.getElementById('clearMapButton');
-            const hazardDropdown = document.getElementById('hazardMapDropdown').parentElement;
+            mobileList.style.display = 'flex';
 
-            // 新しいバー作成
-            const bar = document.createElement('div');
-            bar.id = 'mobile-map-buttons-bar';
-            bar.style.position = 'fixed';
-            bar.style.left = '0';
-            bar.style.right = '0';
-            bar.style.bottom = '0';
-            bar.style.zIndex = '2000';
-            bar.style.display = 'flex';
-            bar.style.flexDirection = 'row';
-            bar.style.justifyContent = 'space-around';
-            bar.style.alignItems = 'center';
-            bar.style.background = 'rgba(255,255,255,0.95)';
-            bar.style.padding = '8px 0';
-            bar.style.borderTop = '1px solid #ccc';
+            // 消去
+            document.getElementById('clearMapButton-mobile').onclick = clearMapOverlays;
 
-            // ボタンを一時的に移動
-            if (clearBtn) bar.appendChild(clearBtn);
-            if (hazardDropdown) bar.appendChild(hazardDropdown);
-            if (earthquakeBtn) bar.appendChild(earthquakeBtn);
+            // ハザードマップ
+            document.querySelectorAll('.hazard-map-select-mobile').forEach(el => {
+                el.onclick = function(e) {
+                    e.preventDefault();
+                    setHazardMap(this.dataset.type);
+                };
+            });
 
-            document.body.appendChild(bar);
+            // 地震速報
+            document.getElementById('earthquakeButton-mobile').onclick = fetchAndShowEarthquake;
+
+            // 検索
+            document.getElementById('searchForm-mobile').onsubmit = function(e) {
+                e.preventDefault();
+                const place = document.getElementById('searchInput-mobile').value;
+                if (place) showMap(place);
+            };
         } else {
-            // PC時はナビバーに戻す（リロードで戻る想定）
+            mobileList.style.display = 'none';
         }
     }
-
-    setupMobileButtonBar();
-    window.addEventListener('resize', setupMobileButtonBar);
+    setupMobileFuncList();
+    window.addEventListener('resize', setupMobileFuncList);
 });
 
 function showRouteToShelter(shelterLat, shelterLon) {
@@ -530,10 +518,7 @@ window.addEventListener('DOMContentLoaded', function() {
             setHazardMap(this.dataset.type);
         });
     });
-    // 地震速報ボタンのイベント
     document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
-
-    // 消去ボタンのイベント
     document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
 });
 
