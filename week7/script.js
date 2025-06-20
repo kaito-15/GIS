@@ -55,6 +55,18 @@ function initMap(center = [139.767125, 35.681236], zoom = 12) {
 // DOMContentLoaded イベントでマップを初期化
 window.addEventListener('DOMContentLoaded', function() {
     initMap();
+
+    document.querySelectorAll('.hazard-map-select').forEach(el => {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            setHazardMap(this.dataset.type);
+        });
+    });
+    // 地震速報ボタンのイベント
+    document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
+
+    // 消去ボタンのイベント
+    document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
 });
 
 function showRouteToShelter(shelterLat, shelterLon) {
@@ -514,8 +526,8 @@ async function fetchAndShowEarthquake() {
                 const lat = parseFloat(hypocenter.latitude);
                 const lng = parseFloat(hypocenter.longitude);
 
-                // ピン追加
-                const marker = new maplibregl.Marker({ color: "orange" })
+                // 黒いピン追加
+                const marker = new maplibregl.Marker({ color: "black" })
                     .setLngLat([lng, lat])
                     .setPopup(new maplibregl.Popup().setHTML(`
                         <div>

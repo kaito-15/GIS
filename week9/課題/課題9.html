@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>群馬県1kmメッシュ人口分布図</title>
+		<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+		<link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet"/>
+		<style>
+			body { margin: 0; padding: 0; }
+			#map { width: 100%; height: 100vh; }
+			#controls {
+				position: absolute;
+				top: 10px;
+				left: 10px;
+				background: rgba(255,255,255,0.9);
+				padding: 10px;
+				border-radius: 8px;
+				z-index: 1;
+			}
+			#legend {
+				position: absolute;
+				bottom: 20px;
+				left: 10px;
+				background: rgba(255,255,255,0.9);
+				padding: 10px;
+				border-radius: 8px;
+				font-size: 12px;
+				z-index: 1;
+			}
+			h1 { margin: 0 0 4px 0; font-size: 20px; }
+			h2 { margin: 0 0 8px 0; font-size: 14px; font-weight: normal; }
+		</style>
+	</head>
+	<body>
+		<div id="controls">
+			<h1>群馬県1kmメッシュ人口分布図</h1>
+			<h2>2020年国勢調査（例）</h2>
+			<label>色分け対象:
+				<select id="property-select">
+					<option value="T001100001">総人口</option>
+				</select>
+			</label>
+		</div>
+		<div id="map"></div>
+		<div id="legend">
+			<b>凡例</b><br>
+			<span style="background:#f0f9e8;display:inline-block;width:20px;height:10px;"></span> 0～3000<br>
+			<span style="background:#bae4bc;display:inline-block;width:20px;height:10px;"></span> 3000～7000<br>
+			<span style="background:#7bccc4;display:inline-block;width:20px;height:10px;"></span> 7000～12000<br>
+			<span style="background:#2b8cbe;display:inline-block;width:20px;height:10px;"></span> 12000～18000<br>
+			<span style="background:#08589e;display:inline-block;width:20px;height:10px;"></span> 18000以上
+		</div>
+		<script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+		<script>
+			const basemaps = {
+				'dark': 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+				'light': 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+			};
+			const map = new maplibregl.Map({
+				container: 'map',
+				style: basemaps.dark,
+				center: [139.75, 35.68],
+				zoom: 9
+			});
+
+			let currentProperty = 'T001100001';
+
+			function getFillColorExpression(property) {
+				return [
+					'interpolate',
+					['linear'],
+					['get', property],
+					0, '#f0f9e8',
+					3000, '#bae4bc',
+					7000, '#7bccc4',
+					12000, '#2b8cbe',
+					18000, '#08589e'
+				];
+			}
+
+			map.on('load', () => {
+				map.addSource('gunma', {
+					type: 'geojson',
+					data: 'gunma_population.geojson'
+				});
+
+				map.addLayer({
+					id: 'population-layer',
+					type: 'fill',
+					source: 'gunma',
+					paint: {
+						'fill-color': getFillColorExpression(currentProperty),
+						'fill-opacity': 0.75,
+						'fill-outline-color': '#ffffff'
+					}
+				});
+
+				// ポップアップ
+				const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+				map.on('mousemove', 'population-layer', (e) => {
+					const feature = e.features[0];
+					const props = feature.properties;
+					const mesh = props['meshcode'] || '';
+					const pop = props['T001100001'] || 0;
+					const elderly = props['elderly'] || 'N/A';
+					popup.setLngLat(e.lngLat)
+						.setHTML(
+							`<b>メッシュ:</b> ${mesh}<br>
+							<b>総人口:</b> ${pop}<br>
+							<b>高齢者数:</b> ${elderly}`
+						)
+						.addTo(map);
+				});
+				map.on('mouseleave', 'population-layer', () => {
+					popup.remove();
+				});
+			});
+
+			// 色分け対象切替
+			document.getElementById('property-select').addEventListener('change', function() {
+				currentProperty = this.value;
+				map.setPaintProperty('population-layer', 'fill-color', getFillColorExpression(currentProperty));
+			});
+		</script>
+	</body>
+</html>
