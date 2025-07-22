@@ -2,12 +2,34 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>学生ポータル</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>避難マップ</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="styles.css" rel="stylesheet" />
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    #map, #map-container {
+      width: 100vw;
+      height: 100vh;
+      min-height: 400px;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
     @media (max-width: 600px) {
+      #map, #map-container {
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 320px;
+      }
       /* 左上に機能リストを重ねて表示 */
       #mobile-func-list {
         position: fixed;
@@ -47,7 +69,7 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid flex-column">
-    <a class="navbar-brand fw-bold mx-auto mb-2" href="#">Quake Guard</a>
+    <a class="navbar-brand fw-bold mx-auto mb-2" href="#">避難マップ</a>
     <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
       <ul class="navbar-nav">
         <li class="nav-item">
@@ -75,9 +97,16 @@
         <ul class="dropdown-menu" aria-labelledby="hazardMapDropdown">
           <li><a class="dropdown-item hazard-map-select" href="#" data-type="none">非表示</a></li>
           <li><a class="dropdown-item hazard-map-select" href="#" data-type="flood">洪水</a></li>
+          <li><a class="dropdown-item hazard-map-select" href="#" data-type="tsunami_newlegend">津波（新凡例）</a></li>
         </ul>
       </div>
-      <button class="btn btn-outline-warning ms-2" id="earthquakeButton">地震速報</button>
+      <!-- ここから追加 -->
+      <button class="btn btn-outline-info ms-2" id="videoButton">映像</button>
+      <button class="btn btn-outline-success ms-2" id="backToCurrentButton">現在地に戻る</button>
+      <a class="btn btn-outline-primary ms-2" href="https://www.jma.go.jp/bosai/forecast/" target="_blank" rel="noopener noreferrer" id="weatherButton">天気予報</a>
+      <!-- ここまで追加 -->
+      <!-- 地震速報ボタン削除 -->
+      <!-- <button class="btn btn-outline-warning ms-2" id="earthquakeButton">地震速報</button> -->
     </div>
   </div>
 </nav>
@@ -92,9 +121,11 @@
     <ul class="dropdown-menu" aria-labelledby="hazardMapDropdown-mobile">
       <li><a class="dropdown-item hazard-map-select-mobile" href="#" data-type="none">非表示</a></li>
       <li><a class="dropdown-item hazard-map-select-mobile" href="#" data-type="flood">洪水</a></li>
+      <li><a class="dropdown-item hazard-map-select-mobile" href="#" data-type="tsunami_newlegend">津波（新凡例）</a></li>
     </ul>
   </div>
-  <button class="btn btn-outline-warning" id="earthquakeButton-mobile">地震速報</button>
+  <!-- 地震速報ボタン削除 -->
+  <!-- <button class="btn btn-outline-warning" id="earthquakeButton-mobile">地震速報</button> -->
   <form class="d-flex" role="search" id="searchForm-mobile" style="gap:4px;">
     <input class="form-control" type="search" placeholder="検索" aria-label="検索" id="searchInput-mobile">
     <button class="btn btn-outline-success" type="submit">検索</button>
@@ -199,6 +230,39 @@
             <span id="managerContact">山田 太郎（メール: yamada@example.com / 電話: 090-1234-5678）</span>
           </div>
         </div>
+        <!-- ここから追加 -->
+        <div class="mb-3">
+          <label class="form-label">利用規約</label>
+          <div>
+            <a href="https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html" target="_blank" rel="noopener noreferrer">利用規約を表示</a>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">ハザードマップ出典</label>
+          <div>
+            国土地理院
+          </div>
+        </div>
+        <!-- ここまで追加 -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 利用規約モーダル -->
+<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title" id="termsModalLabel">利用規約</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        <p>
+          本サービスは災害情報の参考として提供されており、情報の正確性・完全性を保証するものではありません。<br>
+          利用者は自己責任でご利用ください。<br>
+          ハザードマップの出典：国土地理院
+        </p>
       </div>
     </div>
   </div>

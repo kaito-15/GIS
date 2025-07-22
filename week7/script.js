@@ -13,6 +13,8 @@ const HAZARD_MAP_TILES = {
     flood: 'https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin/{z}/{x}/{y}.png',
     // 津波: 津波浸水想定
     tsunami: 'https://disaportaldata.gsi.go.jp/raster/05_tsunami/{z}/{x}/{y}.png',
+    // 新津波浸水想定（新凡例）
+    tsunami_newlegend: 'https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png',
     // 土砂災害: 土石流危険渓流
     landslide: 'https://disaportaldata.gsi.go.jp/raster/03_dosekiryu/{z}/{x}/{y}.png',
     // 高潮: 高潮浸水想定
@@ -55,14 +57,12 @@ function initMap(center = [139.767125, 35.681236], zoom = 12) {
 // DOMContentLoaded イベントでマップを初期化
 window.addEventListener('DOMContentLoaded', function() {
     initMap();
-
     document.querySelectorAll('.hazard-map-select').forEach(el => {
         el.addEventListener('click', function(e) {
             e.preventDefault();
             setHazardMap(this.dataset.type);
         });
     });
-    document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
     document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
 
     // スマホ用機能リストの表示・イベント
@@ -82,9 +82,6 @@ window.addEventListener('DOMContentLoaded', function() {
                 };
             });
 
-            // 地震速報
-            document.getElementById('earthquakeButton-mobile').onclick = fetchAndShowEarthquake;
-
             // 検索
             document.getElementById('searchForm-mobile').onsubmit = function(e) {
                 e.preventDefault();
@@ -97,7 +94,388 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     setupMobileFuncList();
     window.addEventListener('resize', setupMobileFuncList);
+
+    // 3D表示切替ボタンのイベント
+    const toggle3dButton = document.getElementById('toggle3dButton');
+    let is3d = false;
+    if (toggle3dButton) {
+        toggle3dButton.onclick = function() {
+            is3d = !is3d;
+            if (is3d) {
+                // 航空写真スタイルに変更
+                map.setStyle(MAP_STYLE_SATELLITE);
+                map.once('styledata', () => {
+                    map.easeTo({ pitch: 60, bearing: 30, duration: 800 });
+                });
+                toggle3dButton.textContent = "2D表示に戻す";
+            } else {
+                // 通常地図スタイルに戻す
+                map.setStyle(MAP_STYLE_NORMAL);
+                map.once('styledata', () => {
+                    map.easeTo({ pitch: 0, bearing: 0, duration: 800 });
+                });
+                toggle3dButton.textContent = "3D表示切替";
+            }
+        };
+    }
+
+    // 映像ボタンのイベント
+    const videoButton = document.getElementById('videoButton');
+    if (videoButton) {
+        videoButton.onclick = function() {
+            if (!window.confirm('津波の映像が流れます。よろしいですか？')) {
+                return;
+            }
+            // 1つ目の映像ピン
+            const lat1 = 39.638702720797745;
+            const lng1 = 141.94551467376274;
+            const youtubeEmbed1 = `<iframe width="320" height="180" src="https://www.youtube.com/embed/4XvFFfgXwnw?si=whPbI32vQVmaw-6Y&autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+
+            // 2つ目の映像ピン
+            const lat2 = 38.909603012460195;
+            const lng2 = 141.5826028844679;
+            const youtubeEmbed2 = `<iframe width="320" height="180" src="https://www.youtube.com/embed/xvJnC_Rvbcs?si=kgACOcEFetgzcIlU&autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+
+            // 既存映像ピンを消す
+            if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+                window.videoMarkers.forEach(m => m.remove());
+            }
+            window.videoMarkers = [];
+
+            // 1つ目のピン
+            const marker1 = new maplibregl.Marker({ color: "red" })
+                .setLngLat([lng1, lat1])
+                .setPopup(new maplibregl.Popup({ maxWidth: "340px" }).setHTML(`
+                    <div>
+                        <b>映像1</b><br>
+                        ${youtubeEmbed1}
+                    </div>
+                `))
+                .addTo(map);
+            window.videoMarkers.push(marker1);
+
+            // 2つ目のピン
+            const marker2 = new maplibregl.Marker({ color: "red" })
+                .setLngLat([lng2, lat2])
+                .setPopup(new maplibregl.Popup({ maxWidth: "340px" }).setHTML(`
+                    <div>
+                        <b>映像2</b><br>
+                        ${youtubeEmbed2}
+                    </div>
+                `))
+                .addTo(map);
+            window.videoMarkers.push(marker2);
+
+            marker1.togglePopup();
+            marker2.togglePopup();
+
+            map.fitBounds([
+                [lng1, lat1],
+                [lng2, lat2]
+            ], { padding: 80, maxZoom: 14 });
+        };
+    }
+
+    // 消去ボタンで映像ピンも消す
+    document.getElementById('clearMapButton').addEventListener('click', function() {
+        // 赤ピン
+        if (currentMarker) {
+            currentMarker.remove();
+            currentMarker = null;
+        }
+        // 経路
+        if (map.getLayer('osrm-route-layer')) {
+            map.removeLayer('osrm-route-layer');
+        }
+        if (map.getSource('osrm-route-source')) {
+            map.removeSource('osrm-route-source');
+        }
+        // 徒歩時間ポップアップ
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+        // 映像ピン
+        if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+            window.videoMarkers.forEach(m => m.remove());
+            window.videoMarkers = [];
+        }
+    });
+
+    // スマホ用消去ボタンも同様
+    document.getElementById('clearMapButton-mobile').addEventListener('click', function() {
+        // 赤ピン
+        if (currentMarker) {
+            currentMarker.remove();
+            currentMarker = null;
+        }
+        // 経路
+        if (map.getLayer('osrm-route-layer')) {
+            map.removeLayer('osrm-route-layer');
+        }
+        if (map.getSource('osrm-route-source')) {
+            map.removeSource('osrm-route-source');
+        }
+        // 徒歩時間ポップアップ
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+        // 映像ピン
+        if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+            window.videoMarkers.forEach(m => m.remove());
+            window.videoMarkers = [];
+        }
+    });
+
+    // 小学校などの施設検索・候補表示・半径1km内ピン立て
+    async function searchNearbyFacilities(keyword, center, radiusMeters = 1000) {
+        // Overpass APIでOpenStreetMapから施設情報取得
+        // 小学校の場合: amenity=school OR nameに小学校を含む
+        const query = `
+            [out:json][timeout:25];
+            (
+                node["amenity"="school"](around:${radiusMeters},${center[1]},${center[0]});
+                node["name"~"${keyword}"](around:${radiusMeters},${center[1]},${center[0]});
+                way["amenity"="school"](around:${radiusMeters},${center[1]},${center[0]});
+                way["name"~"${keyword}"](around:${radiusMeters},${center[1]},${center[0]});
+            );
+            out center;
+        `;
+        const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.elements || data.elements.length === 0) {
+                alert('該当する施設が見つかりませんでした');
+                return;
+            }
+
+            // 既存ピンを消す
+            if (window.facilityMarkers && Array.isArray(window.facilityMarkers)) {
+                window.facilityMarkers.forEach(m => m.remove());
+            }
+            window.facilityMarkers = [];
+
+            // 候補リストを表示
+            const candidates = data.elements.map(el => {
+                const lat = el.lat || (el.center && el.center.lat);
+                const lon = el.lon || (el.center && el.center.lon);
+                return {
+                    name: el.tags && (el.tags.name || el.tags['name:ja'] || '小学校'),
+                    lat,
+                    lon
+                };
+            }).filter(c => c.lat && c.lon
+                // 日本国内のみ（緯度: 24~46, 経度: 122~154）
+                && c.lat > 24 && c.lat < 46 && c.lon > 122 && c.lon < 154
+            );
+
+            if (candidates.length === 0) {
+                alert('該当する施設が見つかりませんでした');
+                return;
+            }
+
+            // ピンを立てる
+            candidates.forEach(c => {
+                const marker = new maplibregl.Marker({ color: "green" })
+                    .setLngLat([c.lon, c.lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <div>
+                            ${c.name}
+                            <br>
+                            <button class="btn btn-sm btn-primary route-to-green" data-lat="${c.lat}" data-lon="${c.lon}">ここまでの避難経路</button>
+                        </div>
+                    `))
+                    .addTo(map);
+                window.facilityMarkers.push(marker);
+
+                // ポップアップが開いた時にボタンイベント追加
+                marker.getPopup().on('open', () => {
+                    const btn = document.querySelector('.route-to-green[data-lat="' + c.lat + '"][data-lon="' + c.lon + '"]');
+                    if (btn) {
+                        btn.onclick = function() {
+                            showRouteToShelter(c.lat, c.lon);
+                        };
+                    }
+                });
+            });
+
+            // 候補リストを画面に表示（例: アラートで表示）
+            alert(`半径1km内の候補:\n${candidates.map(c => c.name).join('\n')}`);
+
+            // 地図を候補の中心に移動
+            if (candidates.length > 0) {
+                map.flyTo({ center: [candidates[0].lon, candidates[0].lat], zoom: 15 });
+            }
+        } catch (e) {
+            alert('施設情報の取得に失敗しました');
+            console.error(e);
+        }
+    }
+
+    // 検索フォームのイベントを拡張
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const place = document.getElementById('searchInput').value;
+        if (place) {
+            // まず地名検索
+            showMap(place);
+
+            // 小学校などの施設検索
+            if (place.includes('小学校')) {
+                // 現在地 or 地図中心で検索
+                let center = map.getCenter();
+                searchNearbyFacilities('小学校', [center.lng, center.lat], 1000);
+            }
+            // 他のキーワードも同様に拡張可能
+        }
+    });
+
+    // 消去ボタンで施設ピンも消す
+    document.getElementById('clearMapButton').addEventListener('click', function() {
+        // 赤ピン
+        if (currentMarker) {
+            currentMarker.remove();
+            currentMarker = null;
+        }
+        // 経路
+        if (map.getLayer('osrm-route-layer')) {
+            map.removeLayer('osrm-route-layer');
+        }
+        if (map.getSource('osrm-route-source')) {
+            map.removeSource('osrm-route-source');
+        }
+        // 徒歩時間ポップアップ
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+        // 映像ピン
+        if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+            window.videoMarkers.forEach(m => m.remove());
+            window.videoMarkers = [];
+        }
+        // 施設ピン
+        if (window.facilityMarkers && Array.isArray(window.facilityMarkers)) {
+            window.facilityMarkers.forEach(m => m.remove());
+            window.facilityMarkers = [];
+        }
+    });
+    document.getElementById('clearMapButton-mobile').addEventListener('click', function() {
+        // 赤ピン
+        if (currentMarker) {
+            currentMarker.remove();
+            currentMarker = null;
+        }
+        // 経路
+        if (map.getLayer('osrm-route-layer')) {
+            map.removeLayer('osrm-route-layer');
+        }
+        if (map.getSource('osrm-route-source')) {
+            map.removeSource('osrm-route-source');
+        }
+        // 徒歩時間ポップアップ
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+        // 映像ピン
+        if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+            window.videoMarkers.forEach(m => m.remove());
+            window.videoMarkers = [];
+        }
+        // 施設ピン
+        if (window.facilityMarkers && Array.isArray(window.facilityMarkers)) {
+            window.facilityMarkers.forEach(m => m.remove());
+            window.facilityMarkers = [];
+        }
+    });
+
+    // 固有名詞リスト（地名・施設名などのみ赤ピン表示）
+    // const properNouns = [
+    //     "東京駅",
+    //     "大阪城",
+    //     "仙台市立荒浜小学校",
+    //     "札幌市立中央小学校",
+    //     "名古屋市立山王小学校",
+    //     "東北大学",
+    //     "京都大学"
+    //     // ...追加...
+    // ];
+
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const place = document.getElementById('searchInput').value.trim();
+        if (!place) return;
+
+        // 固有名詞リストに完全一致した場合のみ赤ピン表示
+        if (properNouns.includes(place)) {
+            showMap(place);
+        } else {
+            alert('地名や施設名（固有名詞）を正確に入力してください。');
+            // 赤ピン・経路は表示しない
+        }
+    });
+
+    // 赤ピン・経路・徒歩時間・映像ピンの消去ボタン
+    function clearMapOverlays() {
+        // 赤ピン
+        if (currentMarker) {
+            currentMarker.remove();
+            currentMarker = null;
+        }
+        if (markers && markers.length > 0) {
+            markers.forEach(m => m.remove());
+            markers = [];
+        }
+        // 経路
+        if (map.getLayer('osrm-route-layer')) {
+            map.removeLayer('osrm-route-layer');
+        }
+        if (map.getSource('osrm-route-source')) {
+            map.removeSource('osrm-route-source');
+        }
+        // 徒歩時間ポップアップ
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+        // 映像ピン
+        if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+            window.videoMarkers.forEach(m => m.remove());
+            window.videoMarkers = [];
+        }
+    }
+
+    // 固有名詞（地名・施設名など）のみ検索して地図表示
+    const properNouns = [
+        // 例: 固有名詞リスト（必要に応じて追加・編集）
+        "東京駅",
+        "大阪城",
+        "仙台市立荒浜小学校",
+        "札幌市立中央小学校",
+        "名古屋市立山王小学校"
+        // ...追加...
+    ];
+
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const place = document.getElementById('searchInput').value.trim();
+        if (!place) return;
+
+        // 固有名詞リストに完全一致した場合のみ地図表示
+        if (properNouns.includes(place)) {
+            showMap(place);
+        } else {
+            alert('地名や施設名（固有名詞）を正確に入力してください。');
+            // 施設検索やピン立ては行わない
+        }
+    });
 });
+
+// ...existing code...
 
 function showRouteToShelter(shelterLat, shelterLon) {
     if (!navigator.geolocation) {
@@ -315,9 +693,6 @@ function updatePhoneList() {
         li.innerHTML = `
             <span>${phone}</span>
             <div>
-                <a href="https://aoisann.github.io/Aosa/01/" target="_blank" class="btn btn-sm btn-primary me-2">
-                    サイトに飛ぶ
-                </a>
                 <button class="btn btn-sm btn-danger">削除</button>
             </div>
         `;
@@ -332,14 +707,7 @@ function updatePhoneList() {
 
 document.getElementById('phoneModal').addEventListener('show.bs.modal', function() {
     const phoneList = document.getElementById('phoneList');
-    phoneList.innerHTML = `
-        <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
-            <span>サイトリンク</span>
-            <a href="https://aoisann.github.io/Aosa/01/" target="_blank" class="btn btn-sm btn-primary">
-                サイトに飛ぶ
-            </a>
-        </li>
-    `;
+    phoneList.innerHTML = '';
 });
 
 const phoneMemo = document.getElementById('phoneMemo');
@@ -507,6 +875,56 @@ function setHazardMap(type) {
             }
         });
     }
+    // 津波（従来）
+    else if (type === 'tsunami' && HAZARD_MAP_TILES.tsunami) {
+        map.addSource('hazard-map', {
+            type: 'raster',
+            tiles: [HAZARD_MAP_TILES.tsunami],
+            tileSize: 256,
+            attribution: "国土地理院 災害情報"
+        });
+        map.addLayer({
+            id: 'hazard-map-layer',
+            type: 'raster',
+            source: 'hazard-map',
+            paint: {}
+        });
+        hazardMapVisible = true;
+        map.on('error', function onError(e) {
+            if (
+                e && e.error && e.error.status === 404 &&
+                e.sourceId === 'hazard-map'
+            ) {
+                alert('この地域・ズームレベルには津波ハザードマップがありません。');
+                map.off('error', onError);
+            }
+        });
+    }
+    // 新津波浸水想定（新凡例）
+    else if (type === 'tsunami_newlegend' && HAZARD_MAP_TILES.tsunami_newlegend) {
+        map.addSource('hazard-map', {
+            type: 'raster',
+            tiles: [HAZARD_MAP_TILES.tsunami_newlegend],
+            tileSize: 256,
+            attribution: "国土地理院 災害情報"
+        });
+        map.addLayer({
+            id: 'hazard-map-layer',
+            type: 'raster',
+            source: 'hazard-map',
+            paint: {}
+        });
+        hazardMapVisible = true;
+        map.on('error', function onError(e) {
+            if (
+                e && e.error && e.error.status === 404 &&
+                e.sourceId === 'hazard-map'
+            ) {
+                alert('この地域・ズームレベルには新津波ハザードマップがありません。');
+                map.off('error', onError);
+            }
+        });
+    }
 }
 
 // DOMContentLoaded イベントでドロップダウンのイベントリスナーを追加
@@ -518,98 +936,39 @@ window.addEventListener('DOMContentLoaded', function() {
             setHazardMap(this.dataset.type);
         });
     });
-    document.getElementById('earthquakeButton').addEventListener('click', fetchAndShowEarthquake);
     document.getElementById('clearMapButton').addEventListener('click', clearMapOverlays);
+
+    // 現在地に戻るボタンのイベント
+    const backToCurrentButton = document.getElementById('backToCurrentButton');
+    if (backToCurrentButton) {
+        backToCurrentButton.onclick = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    const lng = pos.coords.longitude;
+                    const lat = pos.coords.latitude;
+                    map.flyTo({ center: [lng, lat], zoom: 15 });
+                }, function() {
+                    alert('現在地を取得できませんでした');
+                }, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            }
+        };
+    }
 });
 
-async function fetchAndShowEarthquake() {
-    // 気象庁の地震情報JSON（過去の地震一覧）
-    try {
-        // 地震リスト取得
-        const listRes = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json');
-        const list = await listRes.json();
-        if (!Array.isArray(list) || list.length === 0) {
-            alert('地震情報が取得できませんでした');
-            return;
-        }
-
-        // 既存の地震ピンを全て削除
-        earthquakeMarkers.forEach(marker => marker.remove());
-        earthquakeMarkers = [];
-
-        // 24時間以内の地震のみ抽出
-        const now = new Date();
-        for (const item of list) {
-            // item.timeは "2024-06-08T12:34:56+09:00" 形式
-            const quakeTime = new Date(item.time);
-            if ((now - quakeTime) > 24 * 60 * 60 * 1000) break; // 24時間より前なら終了
-
-            // 詳細データ取得
-            try {
-                const detailRes = await fetch(`https://www.jma.go.jp/bosai/quake/data/${item.json}`);
-                const detail = await detailRes.json();
-                const hypocenter = detail.Body.Earthquake.Hypocenter;
-                if (!hypocenter || !hypocenter.latitude || !hypocenter.longitude) continue;
-                const lat = parseFloat(hypocenter.latitude);
-                const lng = parseFloat(hypocenter.longitude);
-
-                // 黒いピン追加
-                const marker = new maplibregl.Marker({ color: "black" })
-                    .setLngLat([lng, lat])
-                    .setPopup(new maplibregl.Popup().setHTML(`
-                        <div>
-                            <b>地震発生</b><br>
-                            ${hypocenter.name || ''}<br>
-                            規模: ${detail.Body.Earthquake.Magnitude || ''}<br>
-                            発生時刻: ${detail.Body.Earthquake.OriginTime || ''}
-                        </div>
-                    `))
-                    .addTo(map);
-                earthquakeMarkers.push(marker);
-            } catch (e) {
-                // 個別地震データ取得失敗は無視
-                continue;
-            }
-        }
-
-        // 最初の地震ピンがあればそこに移動
-        if (earthquakeMarkers.length > 0) {
-            earthquakeMarkers[0].togglePopup();
-            map.flyTo({ center: earthquakeMarkers[0].getLngLat(), zoom: 6 });
-        } else {
-            alert('過去24時間に地震情報はありません');
-        }
-    } catch (e) {
-        alert('地震情報の取得に失敗しました');
-        console.error(e);
-    }
-}
-
-/*
-1. 地震リストを取得
-   https://www.jma.go.jp/bosai/quake/data/list.json
-   → 最新の地震情報ファイル名（例: 20240607123456.json）が配列で返る
-
-2. 最新の地震詳細データを取得
-   https://www.jma.go.jp/bosai/quake/data/20240607123456.json
-   → JSONの Body.Earthquake.Hypocenter.latitude, Body.Earthquake.Hypocenter.longitude に位置情報が入っている
-
-3. 例（fetchで取得）:
-   const list = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json').then(r => r.json());
-   const latestId = list[0].json;
-   const detail = await fetch('https://www.jma.go.jp/bosai/quake/data/' + latestId).then(r => r.json());
-   const lat = parseFloat(detail.Body.Earthquake.Hypocenter.latitude);
-   const lng = parseFloat(detail.Body.Earthquake.Hypocenter.longitude);
-
-4. 取得したlat, lngを使ってマップ上にピンを立てることができます。
-*/
-
-// 赤ピン・経路・徒歩時間の消去ボタン
+// 赤ピン・経路・徒歩時間・映像ピン・施設ピンの消去ボタン
 function clearMapOverlays() {
     // 赤ピン
     if (currentMarker) {
         currentMarker.remove();
         currentMarker = null;
+    }
+    if (markers && markers.length > 0) {
+        markers.forEach(m => m.remove());
+        markers = [];
     }
     // 経路
     if (map.getLayer('osrm-route-layer')) {
@@ -622,5 +981,15 @@ function clearMapOverlays() {
     if (currentPopup) {
         currentPopup.remove();
         currentPopup = null;
+    }
+    // 映像ピン
+    if (window.videoMarkers && Array.isArray(window.videoMarkers)) {
+        window.videoMarkers.forEach(m => m.remove());
+        window.videoMarkers = [];
+    }
+    // 施設ピン
+    if (window.facilityMarkers && Array.isArray(window.facilityMarkers)) {
+        window.facilityMarkers.forEach(m => m.remove());
+        window.facilityMarkers = [];
     }
 }
